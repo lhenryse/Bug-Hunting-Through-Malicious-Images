@@ -1,12 +1,12 @@
-## CECS 378 Bug Hunting Through Malicious Images
+# CECS 378 Bug Hunting Through Malicious Images
 
-# What is Pillow?
-____
+## What is Pillow?
+A type of scan
 
-# What is VP8X?
-____
+## What is VP8X?
+A type of scan
 
-# To run:
+## To run:
 
 1. cd to folder
 
