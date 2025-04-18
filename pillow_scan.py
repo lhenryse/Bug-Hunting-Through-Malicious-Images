@@ -5,19 +5,27 @@ import warnings
 import os
 import argparse
 
+# ignore warning for clean output
 warnings.filterwarnings("ignore", category=DecompressionBombWarning)
 
 MAX_DIMENSION = 10000
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_FILE_SIZE = 10 * 1024 * 1024
 
+# scanner using pillow
 def scan_with_pillow(path):
     print("\n--------------------------------------")
     print(f"\nFile: {os.path.basename(path)}")
     print("Scan: Pillow")
     print("\n--------------------------------------")
 
+    if not os.path.exists(path):
+        print("\nFile not found")
+        print("\n--------------------------------------")
+        return
+        
     warnings_list = []
 
+    # compares sizing to look for possible malicious intent
     try:
         img = Image.open(path)
         if img.size[0] * img.size[1] > Image.MAX_IMAGE_PIXELS:
@@ -27,7 +35,7 @@ def scan_with_pillow(path):
         print("\nImage verified successfully")
         print("\n--------------------------------------")
 
-        img = Image.open(path)  # re-open after verify
+        img = Image.open(path)
         print(f"\nFormat     : {img.format}")
         print(f"Dimensions : {img.size[0]} x {img.size[1]}")
         print(f"Mode       : {img.mode}")
@@ -44,11 +52,13 @@ def scan_with_pillow(path):
         if img.format != "WEBP":
             warnings_list.append("Note: File is not in WEBP format. This check is for WebP exploits")
 
+    # image can not be processed
     except Exception as e:
         print(f"\nCould not process image: {e}")
         print("\n--------------------------------------")
         return
 
+    # prints warnings if there are any
     if warnings_list:
         print()
         for w in warnings_list:
@@ -58,6 +68,7 @@ def scan_with_pillow(path):
         print("\nNo issues detected. Image appears clean")
         print("\n--------------------------------------")
 
+    # scan is completed
     print("\nScan completed")
     print("\n--------------------------------------")
 

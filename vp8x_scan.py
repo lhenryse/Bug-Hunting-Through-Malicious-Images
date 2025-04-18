@@ -2,6 +2,7 @@
 import os
 import struct
 
+# scanner using vp8x
 def scan_vp8x_chunk(path):
     print("\n--------------------------------------")
     print(f"\nFile: {os.path.basename(path)}")
@@ -13,6 +14,7 @@ def scan_vp8x_chunk(path):
         print("\n--------------------------------------")
         return
 
+    # detects suspiciousness using size
     try:
         with open(path, "rb") as f:
             data = f.read()
@@ -84,6 +86,7 @@ def scan_vp8x_chunk(path):
         print(f"\nError reading file: {e}")
         print("\n--------------------------------------")
 
+    # scan is completed
     print("\nScan completed")
     print("\n--------------------------------------")
 
