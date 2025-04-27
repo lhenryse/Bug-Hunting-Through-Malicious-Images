@@ -19,7 +19,7 @@ init(autoreset=True)
 warnings.filterwarnings("ignore", category=DecompressionBombWarning)
 
 # supported image types
-SUPPORTED_EXTENSIONS = (".webp", ".jpg", ".jpeg", ".png", ".gif")
+SUPPORTED_EXTENSIONS = (".webp", ".jpg", ".jpeg", ".png", ".gif", "tiff", "pdf")
 
 # max safe values
 MAX_DIMENSION = 10000
