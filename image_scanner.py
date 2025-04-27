@@ -31,8 +31,6 @@ visited_pages = set()
 # scan image using Pillow
 
 def scan_with_pillow(img_data, from_file=False, path_or_url=""):
-    print("\n--------------------------------------")
-    print(f"\nScan target: {path_or_url}")
     print("Scan: Pillow")
     print("\n--------------------------------------")
 
@@ -244,26 +242,33 @@ def scan_site(start_url, max_depth=0):
                 queue.append((full_url, depth + 1))
 
 # interactive menu
-
 def main():
     print("\nImage Vulnerability Scanner")
-    print("1. Scan a local file")
-    print("2. Scan a website")
-    choice = input("\nSelect an option (1 or 2): ").strip()
 
-    if choice == "1":
-        filepath = input("\nEnter path to image file: ").strip()
-        scan_file(filepath)
-    elif choice == "2":
-        url = input("\nEnter website URL: ").strip()
-        depth_input = input("Enter max crawl depth (default 0): ").strip()
-        try:
-            depth = int(depth_input) if depth_input else 0
-        except ValueError:
-            depth = 0
-        scan_site(url, max_depth=depth)
-    else:
-        print(Fore.RED + "\nInvalid option. Exiting.")
+    while True:
+        print("\n--------------------------------------")
+        print("1. Scan a local file")
+        print("2. Scan a website")
+        print("3. Exit")
+
+        choice = input("\nSelect an option (1, 2, or 3): ").strip()
+
+        if choice == "1":
+            filepath = input("\nEnter path to image file: ").strip()
+            scan_file(filepath)
+        elif choice == "2":
+            url = input("\nEnter website URL: ").strip()
+            depth_input = input("Enter max crawl depth (default 0): ").strip()
+            try:
+                depth = int(depth_input) if depth_input else 0
+            except ValueError:
+                depth = 0
+            scan_site(url, max_depth=depth)
+        elif choice == "3":
+            print("\nExiting.")
+            break
+        else:
+            print(Fore.RED + "\nInvalid option. Please select 1, 2, or 3.")
 
 if __name__ == "__main__":
     main()
