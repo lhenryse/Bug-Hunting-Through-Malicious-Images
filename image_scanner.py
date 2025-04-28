@@ -65,7 +65,7 @@ def scan_with_pillow(img_data, from_file=False, path_or_url=""):
         print("\nSecurity Warnings")
         if warnings_list:
             for w in warnings_list:
-                print(Fore.YELLOW + "- " + w)
+                print(Fore.RED+ "- " + w)
         else:
             print(Fore.YELLOW +"- No suspicious traits detected.")
 
@@ -80,7 +80,7 @@ def scan_with_pillow(img_data, from_file=False, path_or_url=""):
                         if tag in exif:
                             print(f"- {tag}: {exif[tag]}")
                 else:
-                    print("- No EXIF metadata found.")
+                    print(Fore.YELLOW + f"- No EXIF metadata found.")
             except Exception as e:
                 print(Fore.RED + f"Error reading EXIF metadata: {e}")
 
@@ -125,10 +125,10 @@ def scan_vp8x_chunk(img_data):
             if chunk_type == b'VP8X':
                 print("- VP8X chunk found")
                 flags = chunk_data[0]
-                print(f"  - Flags: {flags:08b}")
+                print(f"- Flags: {flags:08b}")
 
                 if flags & 0b11000000:
-                    print(Fore.YELLOW + "Suspicious: Reserved bits set in VP8X flags")
+                    print(Fore.RED + "Suspicious: Reserved bits set in VP8X flags")
                     suspicious = True
                 if chunk_size != 10:
                     print(Fore.YELLOW + "Suspicious: Non-standard VP8X chunk size")
