@@ -151,6 +151,8 @@ def scan_vp8x_chunk(img_data):
 def extract_exif_from_webp(file_path):
     print("\nScanner: Hidden Data Detection")
 
+    found_exif = False
+
     try:
         with open(file_path, "rb") as f:
             data = f.read()
@@ -162,6 +164,7 @@ def extract_exif_from_webp(file_path):
             chunk_data = data[offset + 8:offset + 8 + chunk_size]
 
             if chunk_type == b'EXIF':
+                found_exif = True
                 print("- EXIF chunk found")
                 try:
                     decoded = chunk_data.decode("utf-8", errors="ignore")
@@ -169,11 +172,15 @@ def extract_exif_from_webp(file_path):
                     print(f"  {decoded}")
                 except Exception as e:
                     print(Fore.RED + f"Failed to decode EXIF data: {e}")
-                return
+                break  # <- important, no need to keep searching
 
             offset += 8 + chunk_size
             if chunk_size % 2 == 1:
                 offset += 1
+
+        if not found_exif:
+            print(Fore.YELLOW + f"- No hidden data detected.")
+
     except Exception as e:
         print(Fore.RED + f"Error reading EXIF data: {e}")
 
