@@ -45,7 +45,7 @@ def scan_with_pillow(img_data, from_file=False, path_or_url=""):
         mode = img.mode
         size_bytes = os.path.getsize(path_or_url) if from_file else len(img_data.getbuffer())
 
-        print("- Image verified successfully\n")
+        print(Fore.GREEN +"- Image verified successfully\n")
 
         # image info
         print("General Information")
