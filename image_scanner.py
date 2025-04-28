@@ -1,4 +1,4 @@
-#image_scanner.py
+# image_scanner.py
 
 import os
 import struct
@@ -19,7 +19,7 @@ init(autoreset=True)
 warnings.filterwarnings("ignore", category=DecompressionBombWarning)
 
 # supported image types
-SUPPORTED_EXTENSIONS = (".webp", ".jpg", ".jpeg", ".png", ".gif", "tiff", "pdf")
+SUPPORTED_EXTENSIONS = (".webp", ".jpg", ".jpeg", ".png", ".gif", ".tiff", ".pdf")
 
 # max safe values
 MAX_DIMENSION = 10000
@@ -29,18 +29,13 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 visited_pages = set()
 
 # scan image using Pillow
-
 def scan_with_pillow(img_data, from_file=False, path_or_url=""):
-    print("Scan: Pillow")
-    print("\n--------------------------------------")
+    print("\nScanner: Pillow")
 
     warnings_list = []
 
     try:
         img = Image.open(img_data)
-        if img.size[0] * img.size[1] > Image.MAX_IMAGE_PIXELS:
-            warnings_list.append("Warning: Image size exceeds safe limits (possible decompression bomb)")
-
         img.verify()
         img_data.seek(0)
         img = Image.open(img_data)
@@ -50,71 +45,76 @@ def scan_with_pillow(img_data, from_file=False, path_or_url=""):
         mode = img.mode
         size_bytes = os.path.getsize(path_or_url) if from_file else len(img_data.getbuffer())
 
-        print("\nImage verified successfully")
-        print("\n--------------------------------------")
-        print(f"Format     : {img_format}")
-        print(f"Dimensions : {width} x {height}")
-        print(f"Mode       : {mode}")
-        print(f"File Size  : {size_bytes} bytes")
-        print("\n--------------------------------------")
+        print("- Image verified successfully\n")
 
+        # image info
+        print("General Information")
+        print(f"- Format     : {img_format}")
+        print(f"- Dimensions : {width} x {height}")
+        print(f"- Mode       : {mode}")
+        print(f"- File Size  : {size_bytes} bytes")
+
+        # compares sizing to look for possible malicious intent
+        if width * height > Image.MAX_IMAGE_PIXELS:
+            warnings_list.append("Warning: Image size exceeds safe limits (possible decompression bomb)")
         if width > MAX_DIMENSION or height > MAX_DIMENSION:
             warnings_list.append("Warning: Extremely large dimensions may be suspicious")
         if size_bytes > MAX_FILE_SIZE:
             warnings_list.append("Warning: Very large image file")
 
+        print("\nSecurity Warnings")
         if warnings_list:
-            print()
             for w in warnings_list:
-                print(Fore.YELLOW + w)
-            print("\n--------------------------------------")
+                print(Fore.YELLOW + "- " + w)
         else:
-            print("\nNo issues detected. Image appears clean")
-            print("\n--------------------------------------")
+            print(Fore.YELLOW +"- No suspicious traits detected.")
 
-        # EXIF metadata check
-        if img_format in ("JPEG", "JPG", "PNG"):
-            print("\nChecking EXIF metadata...")
+        # checks for EXIF metadata
+        if img_format in ("JPEG", "JPG", "PNG") and hasattr(img, "_getexif"):
+            print("\nScanner: EXIF Metadata")
             try:
-                exif_data = img._getexif() if hasattr(img, "_getexif") else img.info.get("exif")
+                exif_data = img._getexif()
                 if exif_data:
-                    if isinstance(exif_data, bytes):
-                        exif_data = Image.open(BytesIO(exif_data))._getexif()
                     exif = {ExifTags.TAGS.get(k, k): v for k, v in exif_data.items() if k in ExifTags.TAGS}
                     for tag in ("DateTime", "Make", "Model", "GPSInfo"):
                         if tag in exif:
-                            print(f"{tag}: {exif[tag]}")
+                            print(f"- {tag}: {exif[tag]}")
                 else:
-                    print("No EXIF metadata found.")
+                    print("- No EXIF metadata found.")
             except Exception as e:
                 print(Fore.RED + f"Error reading EXIF metadata: {e}")
 
-        print("\nScan completed")
-   
+        # check general metadata (info fields)
+        if img.info:
+            print("\nScanner: Metadata Checking")
+            suspicious = False
+            for key, value in img.info.items():
+                if isinstance(value, str):
+                    if "<script>" in value.lower() or "password" in value.lower() or "secret" in value.lower():
+                        print(Fore.RED + f"- Suspicious content detected in {key}: {value}")
+                        suspicious = True
+            if not suspicious:
+                print(Fore.YELLOW + "- No suspicious metadata fields detected.")
+
         return img_format
 
     except Exception as e:
-        print(Fore.RED + f"\nError during Pillow scan: {e}")
-        print("\n--------------------------------------")
+        print(Fore.RED + f"\nError, Pillow scan failed: {e}")
         return None
 
 # scan WebP VP8X chunk manually
-
 def scan_vp8x_chunk(img_data):
-    print("\nScan: VP8X Chunk (CVE-2023-4863)")
-    print("\n--------------------------------------")
+    print("\nScanner: VP8X Chunk Security Check")
 
     try:
         data = img_data.read()
         img_data.seek(0)
 
         if data[:4] != b'RIFF' or data[8:12] != b'WEBP':
-            print(Fore.RED + "\nNot a valid WebP file (missing RIFF/WEBP headers)")
-            print("\n--------------------------------------")
+            print(Fore.RED + "- Not a valid WebP file (missing RIFF/WEBP headers)")
             return
 
         offset = 12
-        vp8x_found = False
         suspicious = False
 
         while offset + 8 <= len(data):
@@ -123,55 +123,68 @@ def scan_vp8x_chunk(img_data):
             chunk_data = data[offset + 8:offset + 8 + chunk_size]
 
             if chunk_type == b'VP8X':
-                vp8x_found = True
-
-                print("\nChunk Details:")
-                print(f"Type   : {chunk_type.decode('ascii')}")
-                print(f"Size   : {chunk_size} bytes")
-
-                if len(chunk_data) < 1:
-                    print("\nVP8X chunk too short to contain flags")
-                    print("\n--------------------------------------")
-                    return
-
+                print("- VP8X chunk found")
                 flags = chunk_data[0]
-                print(f"Flags  : {flags:08b}")
-                print("\n--------------------------------------")
+                print(f"  - Flags: {flags:08b}")
 
                 if flags & 0b11000000:
-                    print(Fore.YELLOW + "\nSuspicious: Reserved bits are set in VP8X flags")
+                    print(Fore.YELLOW + "Suspicious: Reserved bits set in VP8X flags")
                     suspicious = True
                 if chunk_size != 10:
-                    print(Fore.YELLOW + "\nSuspicious: VP8X chunk size is non-standard (10 bytes expected)")
+                    print(Fore.YELLOW + "Suspicious: Non-standard VP8X chunk size")
                     suspicious = True
 
                 if not suspicious:
-                    print("\nNo suspicious traits found in VP8X chunk")
-
-                print("\nScan completed")
+                    print(Fore.YELLOW + "- No suspicious traits detected in VP8X chunk.")
                 return
 
             offset += 8 + chunk_size
             if chunk_size % 2 == 1:
                 offset += 1
 
-        if not vp8x_found:
-            print(Fore.YELLOW + "\nNo VP8X chunk found — not an extended WebP")
+        print(Fore.YELLOW + "- No VP8X chunk found (not an extended WebP)")
 
     except Exception as e:
-        print(Fore.RED + f"\nError during VP8X scan: {e}")
+        print(Fore.RED + f"- Error during VP8X scan: {e}")
 
-    print("\nScan completed")
+# extract EXIF hidden message from WebP manually
+def extract_exif_from_webp(file_path):
+    print("\nScanner: Hidden Data Detection")
+
+    try:
+        with open(file_path, "rb") as f:
+            data = f.read()
+
+        offset = 12
+        while offset + 8 <= len(data):
+            chunk_type = data[offset:offset + 4]
+            chunk_size = struct.unpack("<I", data[offset + 4:offset + 8])[0]
+            chunk_data = data[offset + 8:offset + 8 + chunk_size]
+
+            if chunk_type == b'EXIF':
+                print("- EXIF chunk found")
+                try:
+                    decoded = chunk_data.decode("utf-8", errors="ignore")
+                    print("- Decoded hidden message:")
+                    print(f"  {decoded}")
+                except Exception as e:
+                    print(Fore.RED + f"Failed to decode EXIF data: {e}")
+                return
+
+            offset += 8 + chunk_size
+            if chunk_size % 2 == 1:
+                offset += 1
+    except Exception as e:
+        print(Fore.RED + f"Error reading EXIF data: {e}")
 
 # scan a local file
-
 def scan_file(filepath):
     print("\n--------------------------------------")
-    print(f"\nFile: {os.path.basename(filepath)}")
+    print(f"Scanning File: {os.path.basename(filepath)}")
+    print("--------------------------------------")
 
     if not os.path.exists(filepath):
-        print(Fore.RED + "\nFile not found.")
-        print("\n--------------------------------------")
+        print(Fore.RED + "\nError, File not found.\n")
         return
 
     with open(filepath, "rb") as f:
@@ -181,12 +194,16 @@ def scan_file(filepath):
 
     if fmt == "WEBP" or filepath.lower().endswith(".webp"):
         if fmt is None:
-            print(Fore.YELLOW + "\nWarning: Pillow scan failed, attempting VP8X chunk scan ...")
+            print(Fore.RED + "\nWarning: Pillow scan failed, attempting VP8X chunk scan...")
         img_data.seek(0)
         scan_vp8x_chunk(img_data)
+        extract_exif_from_webp(filepath)
+
+    print("\n--------------------------------------")
+    print("Scan Completed")
+    print("--------------------------------------\n")
 
 # scan a website and its internal images
-
 def scan_site(start_url, max_depth=0):
     queue = deque()
     queue.append((start_url, 0))
@@ -206,8 +223,7 @@ def scan_site(start_url, max_depth=0):
             response = requests.get(current_url, timeout=10)
             response.raise_for_status()
         except Exception as e:
-            print(Fore.RED + f"\nCould not load page: {e}")
-            print("\n--------------------------------------")
+            print(Fore.RED + f"\nCould not load page: {e}\n")
             continue
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -227,7 +243,7 @@ def scan_site(start_url, max_depth=0):
 
                     if fmt == "WEBP" or img_url.lower().endswith(".webp"):
                         if fmt is None:
-                            print(Fore.YELLOW + "\nWarning: Pillow failed, attempting VP8X chunk scan...")
+                            print(Fore.RED + "\nWarning: Pillow failed, attempting VP8X chunk scan...")
                         img_data.seek(0)
                         scan_vp8x_chunk(img_data)
 
@@ -265,7 +281,7 @@ def main():
                 depth = 0
             scan_site(url, max_depth=depth)
         elif choice == "3":
-            print("\nExiting.")
+            print("\nExiting.\n")
             break
         else:
             print(Fore.RED + "\nInvalid option. Please select 1, 2, or 3.")
