@@ -15,7 +15,7 @@ from colorama import Fore, Style, init
 # initialize colorama
 init(autoreset=True)
 
-# ignore decompression bomb warnings for clean output
+# ignore decompression bomb warnings
 warnings.filterwarnings("ignore", category=DecompressionBombWarning)
 
 # supported image types
@@ -28,7 +28,8 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 # track visited pages to prevent re-scanning
 visited_pages = set()
 
-# scan image using Pillow
+# scan image using pillow
+
 def scan_with_pillow(img_data, from_file=False, path_or_url=""):
     print("\nScanner: Pillow")
 
@@ -45,16 +46,16 @@ def scan_with_pillow(img_data, from_file=False, path_or_url=""):
         mode = img.mode
         size_bytes = os.path.getsize(path_or_url) if from_file else len(img_data.getbuffer())
 
-        print(Fore.GREEN +"- Image verified successfully\n")
+        print(Fore.GREEN + "- Image verified successfully\n")
 
-        # image info
+        # print image info
         print("General Information")
         print(f"- Format     : {img_format}")
         print(f"- Dimensions : {width} x {height}")
         print(f"- Mode       : {mode}")
         print(f"- File Size  : {size_bytes} bytes")
 
-        # compares sizing to look for possible malicious intent
+        # check for suspicious size traits
         if width * height > Image.MAX_IMAGE_PIXELS:
             warnings_list.append("Warning: Image size exceeds safe limits (possible decompression bomb)")
         if width > MAX_DIMENSION or height > MAX_DIMENSION:
@@ -65,24 +66,28 @@ def scan_with_pillow(img_data, from_file=False, path_or_url=""):
         print("\nSecurity Warnings")
         if warnings_list:
             for w in warnings_list:
-                print(Fore.RED+ "- " + w)
+                print(Fore.RED + "- " + w)
         else:
-            print(Fore.YELLOW +"- No suspicious traits detected.")
+            print(Fore.YELLOW + "- No suspicious traits detected.")
 
-        # checks for EXIF metadata
+        # check for exif metadata
         if img_format in ("JPEG", "JPG", "PNG") and hasattr(img, "_getexif"):
             print("\nScanner: EXIF Metadata")
             try:
                 exif_data = img._getexif()
                 if exif_data:
                     exif = {ExifTags.TAGS.get(k, k): v for k, v in exif_data.items() if k in ExifTags.TAGS}
+                    found = False
                     for tag in ("DateTime", "Make", "Model", "GPSInfo"):
                         if tag in exif:
                             print(f"- {tag}: {exif[tag]}")
+                            found = True
+                    if not found:
+                        print(Fore.YELLOW + "- No important EXIF fields found.")
                 else:
-                    print(Fore.YELLOW + f"- No EXIF metadata found.")
+                    print(Fore.YELLOW + "- No EXIF metadata found.")
             except Exception as e:
-                print(Fore.RED + f"Error reading EXIF metadata: {e}")
+                print(Fore.RED + f"- Error reading EXIF metadata: {e}")
 
         # check general metadata (info fields)
         if img.info:
@@ -102,7 +107,8 @@ def scan_with_pillow(img_data, from_file=False, path_or_url=""):
         print(Fore.RED + f"\nError, Pillow scan failed: {e}")
         return None
 
-# scan WebP VP8X chunk manually
+# scan webp vp8x chunk manually
+
 def scan_vp8x_chunk(img_data):
     print("\nScanner: VP8X Chunk Security Check")
 
@@ -127,6 +133,8 @@ def scan_vp8x_chunk(img_data):
                 flags = chunk_data[0]
                 print(f"- Flags: {flags:08b}")
 
+                if flags & 0b10:
+                    print(Fore.YELLOW + "- Animation detected: Reserved bits set in ANIM flag")
                 if flags & 0b11000000:
                     print(Fore.RED + "Suspicious: Reserved bits set in VP8X flags")
                     suspicious = True
@@ -147,7 +155,8 @@ def scan_vp8x_chunk(img_data):
     except Exception as e:
         print(Fore.RED + f"- Error during VP8X scan: {e}")
 
-# extract EXIF hidden message from WebP manually
+# extract exif hidden message from webp manually
+
 def extract_exif_from_webp(file_path):
     print("\nScanner: Hidden Data Detection")
 
@@ -165,27 +174,29 @@ def extract_exif_from_webp(file_path):
 
             if chunk_type == b'EXIF':
                 found_exif = True
-                print("- EXIF chunk found")
+                print(Fore.YELLOW + "- EXIF chunk found")
                 try:
                     decoded = chunk_data.decode("utf-8", errors="ignore")
                     print("- Decoded hidden message:")
                     print(f"  {decoded}")
                 except Exception as e:
                     print(Fore.RED + f"Failed to decode EXIF data: {e}")
-                break  # <- important, no need to keep searching
+                break
 
             offset += 8 + chunk_size
             if chunk_size % 2 == 1:
                 offset += 1
 
         if not found_exif:
-            print(Fore.YELLOW + f"- No hidden data detected.")
+            print(Fore.YELLOW + "- No hidden data detected.")
 
     except Exception as e:
         print(Fore.RED + f"Error reading EXIF data: {e}")
 
 # scan a local file
+
 def scan_file(filepath):
+    filepath = filepath.strip('"').strip("'")
     print("\n--------------------------------------")
     print(f"Scanning File: {os.path.basename(filepath)}")
     print("--------------------------------------")
@@ -211,6 +222,7 @@ def scan_file(filepath):
     print("--------------------------------------\n")
 
 # scan a website and its internal images
+
 def scan_site(start_url, max_depth=0):
     queue = deque()
     queue.append((start_url, 0))
@@ -246,6 +258,9 @@ def scan_site(start_url, max_depth=0):
                     img_resp = requests.get(img_url, timeout=10)
                     img_resp.raise_for_status()
                     img_data = BytesIO(img_resp.content)
+
+                    print(f"\nScanning Image: {img_url}")
+
                     fmt = scan_with_pillow(img_data, from_file=False, path_or_url=img_url)
 
                     if fmt == "WEBP" or img_url.lower().endswith(".webp"):
@@ -265,6 +280,7 @@ def scan_site(start_url, max_depth=0):
                 queue.append((full_url, depth + 1))
 
 # interactive menu
+
 def main():
     print("\nImage Vulnerability Scanner")
 
